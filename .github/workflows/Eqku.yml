@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Ambil Repositori
+    - name: Checkout Code
       uses: actions/checkout@v4
 
     - name: Setup Java JDK 17
@@ -19,15 +19,15 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Setup Struktur Proyek Android Otomatis
+    - name: Setup Android Project Structure
       run: |
         mkdir -p app/src/main/java/com/diyaudio/equalizer31
         mkdir -p app/src/main/res/values
         
-        # 1. Buat file settings.gradle
+        # 1. Buat settings.gradle
         echo "include ':app'" > settings.gradle
         
-        # 2. Buat file build.gradle root
+        # 2. Buat build.gradle root
         cat << 'EOF' > build.gradle
         buildscript {
             repositories { google(); mavenCentral() }
@@ -39,7 +39,7 @@ jobs:
         allprojects { repositories { google(); mavenCentral() } }
         EOF
 
-        # 3. Buat file build.gradle modul app
+        # 3. Buat build.gradle modul app
         cat << 'EOF' > app/build.gradle
         plugins {
             id 'com.android.application'
@@ -67,7 +67,7 @@ jobs:
         }
         EOF
 
-        # 4. Buat Manifest dengan Izin Audio Sistem
+        # 4. Buat AndroidManifest.xml dengan izin modifikasi audio global
         cat << 'EOF' > app/src/main/AndroidManifest.xml
         <manifest xmlns:android="http://schemas.android.com/apk/res/android">
             <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
@@ -86,7 +86,7 @@ jobs:
         </manifest>
         EOF
 
-        # 5. Buat Source Code Utama Audio + UI Slider 31 Band
+        # 5. Buat MainActivity.kt (Aplikasi Utama)
         cat << 'EOF' > app/src/main/java/com/diyaudio/equalizer31/MainActivity.kt
         package com.diyaudio.equalizer31
 
@@ -95,7 +95,6 @@ jobs:
         import android.util.Log
         import androidx.activity.ComponentActivity
         import androidx.activity.compose.setContent
-        import androidx.compose.foundation.background
         import androidx.compose.foundation.horizontalScroll
         import androidx.compose.foundation.layout.*
         import androidx.compose.foundation.rememberScrollState
@@ -121,7 +120,7 @@ jobs:
 
             override fun onCreate(savedInstanceState: Bundle?) {
                 super.onCreate(savedInstanceState)
-                eqEngine = EqualizerEngine(0)
+                eqEngine = EqualizerEngine(0) // Audio Session Global
 
                 setContent {
                     MaterialTheme {
@@ -152,7 +151,7 @@ jobs:
                         dynamicsProcessing?.setPreEqBandAllChannelsTo(i, eqBand)
                     }
                 } catch (e: Exception) { 
-                    Log.e("EQ31_ERROR", "Gagal load DSP", e) 
+                    Log.e("EQ31", "Gagal load hardware DSP", e) 
                 }
             }
             fun setBandGain(bandIndex: Int, gainDb: Float) {
@@ -160,7 +159,7 @@ jobs:
                     val eqBand = DynamicsProcessing.EqBand(true, ISO_31_BANDS[bandIndex], gainDb)
                     dynamicsProcessing?.setPreEqBandAllChannelsTo(bandIndex, eqBand)
                 } catch (e: Exception) { 
-                    Log.e("EQ31_ERROR", "Gagal set gain", e) 
+                    Log.e("EQ31", "Gagal set", e) 
                 }
             }
             fun release() { 
@@ -178,19 +177,19 @@ jobs:
                 modifier = Modifier.fillMaxSize().padding(16.dp), 
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("DSP Equalizer 31-Band Pro", fontSize = 22.sp, color = Color.White, modifier = Modifier.padding(vertical = 16.dp))
+                Text("DSP Equalizer 31-Band Pro", fontSize = 20.sp, color = Color.White, modifier = Modifier.padding(vertical = 16.dp))
                 
                 Row(
                     modifier = Modifier.fillMaxWidth().weight(1f).horizontalScroll(scrollState), 
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     ISO_31_BANDS.forEachIndexed { index, freq ->
                         val text = if (freq >= 1000f) "${(freq/1000f).toInt()}k" else "${freq.toInt()}"
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally, 
-                            modifier = Modifier.width(55.dp).fillMaxHeight()
+                            modifier = Modifier.width(50.dp).fillMaxHeight()
                         ) {
-                            Text("${bandGains[index].toInt()} dB", fontSize = 11.sp, color = Color(0xFF00ADB5))
+                            Text("${bandGains[index].toInt()} dB", fontSize = 10.sp, color = Color(0xFF00ADB5))
                             Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                                 Slider(
                                     value = bandGains[index],
@@ -207,7 +206,7 @@ jobs:
                                         }
                                 )
                             }
-                            Text(text, fontSize = 12.sp, color = Color.LightGray)
+                            Text(text, fontSize = 11.sp, color = Color.LightGray)
                         }
                     }
                 }
@@ -215,17 +214,14 @@ jobs:
         }
         EOF
 
-    - name: Unduh Sistem Gradle Wrapper Resmi
+    - name: Setup Wrapper & Build
       run: |
-        npm install -g gradle
-        gradle wrapper --gradle-version 8.5
+        gradle wrapper --gradle-version 8.2
         chmod +x gradlew
+        ./gradlew assembleDebug
 
-    - name: Mulai Kompilasi Menjadi APK
-      run: ./gradlew assembleDebug
-
-    - name: Kirim File APK Siap Download
+    - name: Upload Output APK
       uses: actions/upload-artifact@v4
       with:
-        name: Aplikasi-Equalizer-31Band-Sukses
+        name: Equalizer-31Band-SiapPakai
         path: app/build/outputs/apk/debug/app-debug.apk
